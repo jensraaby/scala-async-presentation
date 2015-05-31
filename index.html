@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>Back to the Future</title>
+
+		<meta name="description" content="A tour of Scala's asynchronous features">
+		<meta name="author" content="Jens Raaby">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/solarized.css" id="theme">
+
+		<!-- Code syntax highlighting -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+
+	<body>
+
+		<div class="reveal">
+
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+				<section>
+					<h1>Back to the Future</h1>
+					<h3>A whirlwind tour of (some of) Scala's asynchronous features</h3>
+					<p>
+						<small><a href="http://jens.raaby.co.uk">Jens Raaby</a> / <a href="http://twitter.com/jraaby">@jraaby</a></small>
+					</p>
+				</section>
+
+				<section>
+					<h2>What's the problem?</h2>
+					<ul>
+						<li>Concurrency is hard</li>
+						<li>Multithreaded code is hard to write</li>
+						<li>Who wants to deal with thread pools, synchronisation, deadlock...?</li>
+					</ul>
+				</section>
+
+
+				<section>
+					<h2>The Reactive Manifesto</h2>
+					<p>Systems should ideally be:</p>
+					<ul>
+						<li>Responsive - not take a long time to serve requests</li>
+						<li>Resilient - stay responsive in the case of failure</li>
+						<li>Elastic - scale as required</li>
+						<li>Message driven - asynchronously communicate</li>
+					</ul>
+					<p>
+						<small><a href="http://www.reactivemanifesto.org">http://www.reactivemanifesto.org</a></small>
+					</p>
+				</section>
+
+				<section>
+					<h2>Cases where asynchronous programming can help</h2>
+					<ol>
+						<li>Reading from a database</li>
+						<li>Time consuming computations</li>
+						<li>Getting a response from a remote web service</li>
+					</ol>
+					<!--<p>-->
+					<!--We don't want to sit around waiting for these to complete!-->
+					<!--</p>-->
+				</section>
+
+
+				<section data-markdown>
+					<script type="text/template">
+						## The Future
+
+						```
+						val fetchedUrl: Future[String] = fetchUrl("http://google.com/?s=future")
+
+						fetchedUrl onSuccess {
+							case value: String =>
+								println(value)
+						}
+
+						```
+
+
+					</script>
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+						## Simple callbacks
+
+						We can easily deal with failures on Futures:
+						```
+						val eventuallyHello = Future {
+							sys.error("Something horrible went wrong")
+						}
+
+						eventuallyHello onComplete {
+							case Success(value) => println("Happy: " + value)
+							case Failure(throwable) => println("Sad: " + throwable.getMessage)
+						}
+						```
+
+						We don't have to crash the whole application
+						```
+						Sad: Something horrible went wrong
+						```
+					</script>
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+						## Higher-order functions on Future
+
+						- ```map```
+						- ```flatMap```
+						- ```foreach```
+						- ```filter```
+						- ```fallbackTo```
+						- ```recover```
+						- ```recoverWith```
+
+					</script>
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+						## Example: deal with failure
+
+						```
+						def getSomePower = Future { sys.error("It's not invented yet") }
+						def getSomeEmergencyPower = Future { "1.21 gigawatts of emergency power" }
+
+						val power: Future[String] = getSomePower recoverWith {
+							case t: Throwable =>
+								println(t.getMessage)
+								getSomeEmergencyPower
+						}
+
+						power onComplete {
+							case Success(t) => println("I got: " + t)
+							case Failure(t) => println("oh dear")
+						}
+						```
+						This prints:
+						```
+						It's not invented yet
+						I got 1.21 gigawatts of emergency power
+						```
+					</script>
+				</section>
+
+				<section>
+					<h2>Map, filter and flatMap allow for-expressions</h2>
+					<p>You can chain multiple operations together</p>
+					<pre><code data-trim>
+def getSomeColombianBeans: Future[Bean] = Future {
+	println("gathering beans")
+	"Colombian"
+}
+def makeCoffee(beanType: Bean): Future[Coffee] = Future {
+	println("making some coffee")
+	s"Delicious $beanType coffee"
+}
+
+val futureCoffee = for {
+	b <- getSomeColombianBeans
+	coffee <- makeCoffee(b)
+} yield coffee
+
+futureCoffee map { coffee => println("Here you go: " + coffee) }
+					</code></pre>
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+						## Combining Futures
+
+						When you have a list of Futures, you can join them into a Future of a list and wait for all to complete:
+
+						```
+						val listOfFutures = List(Future("back"), Future("to"), Future("the"), Future("future"))
+						val futureList = Future.sequence(listOfFutures)
+						```
+
+						Or wait for the first one to complete:
+						```
+						val fastest = Future.firstCompletedOf(listOfFutures)
+						```
+					</script>
+				</section>
+
+				<section>
+					<h2>Testing, testing</h2>
+					<ul>
+						<li>Mocking a success: wrap in the future block: <code>Future{ ... }</code></li>
+						<li>Mocking failure: make a future which blocks for some time, or throws an exception</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>ScalaTest</h2>
+					<ul>
+						<li>ScalaTest has a Futures package</li>
+						<li>Use the <code>whenReady</code> helper in your tests</li>
+					</ul>
+					<pre><code data-trim>
+whenReady(makeCoffee(italianBeans)) { coffee =>
+	coffee should be ("Delicious Italian coffee")
+}
+					</code></pre>
+					<ul>
+						<li>whenReady also allows you to set timeouts</li>
+						</ul>
+				</section>
+
+				<section>
+					<h2>Promises</h2>
+					<ul>
+						<li>Futures are read-only</li>
+						<li>Promises are objects which can be completed with a value (or exception)</li>
+						<li>They provide a future</li>
+					</ul>
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+						## Promise example
+
+						```
+						val p = Promise[T]
+						val f = p.future
+
+						val producer = Future {
+							val r = produceSomething()
+							p success r
+							continueDoingSomethingUnrelated()
+						}
+						val consumer = Future {
+							startDoingSomething()
+							f onSuccess {
+								case r => doSomethingWithResult()
+							}
+						}
+						```
+					</script>
+				</section>
+
+				<section>
+					<h2>A note on execution contexts</h2>
+					<ul>
+						<li>Basically a thread pool - used for executing callbacks etc.</li>
+						<li>Either use the default or roll your own</li>
+						<li>Libraries should be using their own</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>Where next?</h2>
+					<ul>
+						<li>To be fully "reactive", you need asynchronous message passing</li>
+						<li>Actor model (Akka)</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>These tools are powerful</h2>
+					<img src="fire.gif" />
+				</section>
+
+				<section>
+					<h2>But used carefully</h2>
+					<h3>Can be fun</h3>
+					<img src="hoverboard.gif" />
+				</section>
+
+			</div>
+
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
