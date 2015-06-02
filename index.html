@@ -52,6 +52,7 @@
 					<h2>What's the problem?</h2>
 					<ul>
 						<li>Concurrency is hard</li>
+						<li>Waiting is bad</li>
 						<li>Multithreaded code is hard to write</li>
 						<li>Who wants to deal with thread pools, synchronisation, deadlock...?</li>
 					</ul>
@@ -209,14 +210,6 @@ futureCoffee map { coffee => println("Here you go: " + coffee) }
 				</section>
 
 				<section>
-					<h2>Testing, testing</h2>
-					<ul>
-						<li>Mocking a success: wrap in the future block: <code>Future{ ... }</code></li>
-						<li>Mocking failure: make a future which blocks for some time, or throws an exception</li>
-					</ul>
-				</section>
-
-				<section>
 					<h2>ScalaTest</h2>
 					<ul>
 						<li>ScalaTest has a Futures package</li>
@@ -233,7 +226,17 @@ whenReady(makeCoffee(italianBeans)) { coffee =>
 				</section>
 
 				<section>
+					<h2>Testing Tips</h2>
+					<ul>
+						<li>Concurrency on CI server - watch out for timeouts!</li>
+						<li>Testing failure scenarios: make a future which blocks for some time, or throws an exception</li>
+					</ul>
+				</section>
+
+
+				<section>
 					<h2>Promises</h2>
+					One way you can create Futures for testing is using Promises
 					<ul>
 						<li>Futures are read-only</li>
 						<li>Promises are objects which can be completed with a value (or exception)</li>
@@ -276,6 +279,7 @@ whenReady(makeCoffee(italianBeans)) { coffee =>
 				<section>
 					<h2>Where next?</h2>
 					<ul>
+						<li>Observables - like Futures, but for collections</li>
 						<li>To be fully "reactive", you need asynchronous message passing</li>
 						<li>Actor model (Akka)</li>
 					</ul>
